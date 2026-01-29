@@ -10,28 +10,25 @@ pipeline {
     }
 
     environment {
-        // Docker image details
         FRONTEND_IMAGE = 'peterukpabi4/eks-react-todo'
-        BACKEND_IMAGE = 'peterukpabi4/eks-react-todo-backend'
+        BACKEND_IMAGE  = 'peterukpabi4/eks-react-todo-backend'
         TAG = "${env.BUILD_NUMBER}"
 
-        // AWS credentials (from Jenkins "Username with password" credential)
         AWS_CREDENTIALS = credentials('aws-credentials')
         AWS_ACCESS_KEY_ID = "${env.AWS_CREDENTIALS_USR}"
         AWS_SECRET_ACCESS_KEY = "${env.AWS_CREDENTIALS_PSW}"
         AWS_DEFAULT_REGION = 'us-east-1'
 
-        // EKS and cluster info
         EKS_CLUSTER_NAME = 'dive-app-cluster'
         EKS_REGION = 'us-east-1'
 
-        // App names (optional)
         FRONTEND_APP = 'react-todo-frontend'
-        BACKEND_APP = 'react-todo-backend'
-        MONGO_APP = 'mongo'
+        BACKEND_APP  = 'react-todo-backend'
+        MONGO_APP    = 'mongo'
     }
 
     stages {
+
         stage('Checkout Code') {
             steps {
                 checkout scm
@@ -51,18 +48,41 @@ pipeline {
             }
         }
 
-        stage('Configure AWS and EKS') {
+       stage('Configure AWS and EKS') {
+    steps {
+        withCredentials([usernamePassword(
+            credentialsId: 'aws-credentials',
+            usernameVariable: 'AWS_ACCESS_KEY_ID',
+            passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+        )]) {
+            sh '''
+            aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+            aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+            aws configure set region us-east-1
+
+            aws sts get-caller-identity
+
+            aws eks update-kubeconfig --region us-east-1 --name dive-app-cluster
+
+            kubectl cluster-info
+            kubectl get nodes
+            '''
+        }
+    }
+}
+
+
+        stage('Docker Login') {
             steps {
-                sh """
-                aws configure set aws_access_key_id ${AWS_ACCESS_KEY_ID}
-                aws configure set aws_secret_access_key ${AWS_SECRET_ACCESS_KEY}
-                aws configure set region ${AWS_DEFAULT_REGION}
-
-                aws eks update-kubeconfig --region ${EKS_REGION} --name ${EKS_CLUSTER_NAME}
-
-                kubectl cluster-info
-                kubectl get nodes
-                """
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    '''
+                }
             }
         }
 
@@ -88,13 +108,11 @@ pipeline {
 
         stage('Deploy Application to EKS') {
             steps {
-                dir('eks-terraform') { 
+                dir('eks-terraform') {
                     sh """
-                    # Replace images in the manifests with latest build tags
                     sed -i 's|image: peterukpabi4/eks-react-todo:v1|image:${FRONTEND_IMAGE}:${TAG}|g' frontend.yaml
                     sed -i 's|image: peterukpabi4/eks-react-todo-backend|image:${BACKEND_IMAGE}:${TAG}|g' backend.yaml
 
-                    # Apply all manifests (default namespace)
                     kubectl apply -f configmap.yaml
                     kubectl apply -f secret.yaml
                     kubectl apply -f mongo-deployment.yaml
@@ -102,7 +120,6 @@ pipeline {
                     kubectl apply -f frontend.yaml
                     kubectl apply -f backend.yaml
 
-                    # Wait for deployments to be ready
                     kubectl rollout status deployment/${FRONTEND_APP} --timeout=300s
                     kubectl rollout status deployment/${BACKEND_APP} --timeout=300s
                     kubectl rollout status deployment/${MONGO_APP} --timeout=300s
@@ -122,12 +139,6 @@ pipeline {
         }
         failure {
             echo '❌ Pipeline failed!'
-            sh """
-            kubectl describe pods -l app=${FRONTEND_APP}
-            kubectl describe pods -l app=${BACKEND_APP}
-            kubectl logs --tail=50 -l app=${FRONTEND_APP}
-            kubectl logs --tail=50 -l app=${BACKEND_APP}
-            """
         }
         always {
             sh 'docker logout'
@@ -135,4 +146,3 @@ pipeline {
         }
     }
 }
-
