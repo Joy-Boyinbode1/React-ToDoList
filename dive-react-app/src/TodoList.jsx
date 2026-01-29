@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 
-const API_BASE = 'http://localhost:3000/api/todos';
+const API_BASE = '/api/todos';
+
+
+//const API_BASE = import.meta.env.VITE_BACKEND_URL + '/api/todos';
+
+//const API_BASE = 'http://localhost:3000/api/todos';
 
 const TodoList = () => {
   const [tasks, setTasks] = useState([]);
