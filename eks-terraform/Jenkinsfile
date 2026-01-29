@@ -41,7 +41,7 @@ pipeline {
         stage('Terraform - Create/Update EKS Cluster') {
             when { expression { params.SKIP_INFRA == false } }
             steps {
-                dir('terraform') {
+                dir('eks-terraform') {
                     sh '''
                     terraform init
                     terraform plan -out=tfplan
@@ -88,7 +88,7 @@ pipeline {
 
         stage('Deploy Application to EKS') {
             steps {
-                dir('kubernetes') { 
+                dir('eks-terraform') { 
                     sh """
                     # Replace images in the manifests with latest build tags
                     sed -i 's|image: peterukpabi4/eks-react-todo:v1|image:${FRONTEND_IMAGE}:${TAG}|g' frontend.yaml
