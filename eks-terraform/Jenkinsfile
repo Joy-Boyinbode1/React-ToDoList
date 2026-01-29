@@ -35,11 +35,10 @@ pipeline {
         stage('Terraform - Create/Update EKS Cluster') {
             when { expression { params.SKIP_INFRA == false } }
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'aws-credentials',
-                    usernameVariable: 'AWS_ACCESS_KEY_ID',
-                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-                )]) {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-credentials']
+                ]) {
                     dir('eks-terraform') {
                         sh '''
                         export AWS_DEFAULT_REGION=us-east-1
@@ -58,11 +57,10 @@ pipeline {
 
         stage('Configure AWS and EKS') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'aws-credentials',
-                    usernameVariable: 'AWS_ACCESS_KEY_ID',
-                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-                )]) {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-credentials']
+                ]) {
                     sh '''
                     export AWS_DEFAULT_REGION=us-east-1
 
