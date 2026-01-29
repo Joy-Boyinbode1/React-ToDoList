@@ -56,7 +56,7 @@ pipeline {
                     sh '''
                       aws eks update-kubeconfig \
                         --region $AWS_REGION \
-                        --name my-eks-cluster
+                        --name my-cluster
                     '''
                 }
             }
